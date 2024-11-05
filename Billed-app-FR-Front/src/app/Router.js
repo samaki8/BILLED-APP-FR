@@ -1,6 +1,7 @@
+//Billed-app-FR-Front\src\app\Router.js
 import store from "./Store.js"
 import Login, { PREVIOUS_LOCATION } from "../containers/Login.js"
-import Bills  from "../containers/Bills.js"
+import Bills from "../containers/Bills.js"
 import NewBill from "../containers/NewBill.js"
 import Dashboard from "../containers/Dashboard.js"
 
@@ -22,7 +23,7 @@ export default () => {
     )
     if (pathname === ROUTES_PATH['Login']) {
       rootDiv.innerHTML = ROUTES({ pathname })
-      document.body.style.backgroundColor="#0E5AE5"
+      document.body.style.backgroundColor = "#0E5AE5"
       new Login({ document, localStorage, onNavigate, PREVIOUS_LOCATION, store })
     } else if (pathname === ROUTES_PATH['Bills']) {
       rootDiv.innerHTML = ROUTES({ pathname, loading: true })
@@ -30,8 +31,9 @@ export default () => {
       const divIcon2 = document.getElementById('layout-icon2')
       divIcon1.classList.add('active-icon')
       divIcon2.classList.remove('active-icon')
-      const bills = new Bills({ document, onNavigate, store, localStorage  })
+      const bills = new Bills({ document, onNavigate, store, localStorage })
       bills.getBills().then(data => {
+        console.log('Données des bills chargées:', data)
         rootDiv.innerHTML = BillsUI({ data })
         const divIcon1 = document.getElementById('layout-icon1')
         const divIcon2 = document.getElementById('layout-icon2')
@@ -39,7 +41,9 @@ export default () => {
         divIcon2.classList.remove('active-icon')
         new Bills({ document, onNavigate, store, localStorage })
       }).catch(error => {
+        console.log('Erreur lors du chargement des bills:', pathname, error)
         rootDiv.innerHTML = ROUTES({ pathname, error })
+
       })
     } else if (pathname === ROUTES_PATH['NewBill']) {
       rootDiv.innerHTML = ROUTES({ pathname, loading: true })
@@ -52,10 +56,12 @@ export default () => {
       rootDiv.innerHTML = ROUTES({ pathname, loading: true })
       const bills = new Dashboard({ document, onNavigate, store, bills: [], localStorage })
       bills.getBillsAllUsers().then(bills => {
-          rootDiv.innerHTML = DashboardUI({data: {bills}})
-          new Dashboard({document, onNavigate, store, bills, localStorage})
-        }).catch(error => {
+        rootDiv.innerHTML = DashboardUI({ data: { bills } })
+        new Dashboard({ document, onNavigate, store, bills, localStorage })
+      }).catch(error => {
+        console.log(pathname, error)
         rootDiv.innerHTML = ROUTES({ pathname, error })
+
       })
     }
   }
@@ -63,7 +69,7 @@ export default () => {
   window.onpopstate = (e) => {
     const user = JSON.parse(localStorage.getItem('user'))
     if (window.location.pathname === "/" && !user) {
-      document.body.style.backgroundColor="#0E5AE5"
+      document.body.style.backgroundColor = "#0E5AE5"
       rootDiv.innerHTML = ROUTES({ pathname: window.location.pathname })
     }
     else if (user) {
@@ -73,7 +79,7 @@ export default () => {
 
   if (window.location.pathname === "/" && window.location.hash === "") {
     new Login({ document, localStorage, onNavigate, PREVIOUS_LOCATION, store })
-    document.body.style.backgroundColor="#0E5AE5"
+    document.body.style.backgroundColor = "#0E5AE5"
   } else if (window.location.hash !== "") {
     if (window.location.hash === ROUTES_PATH['Bills']) {
       rootDiv.innerHTML = ROUTES({ pathname: window.location.hash, loading: true })
@@ -81,8 +87,9 @@ export default () => {
       const divIcon2 = document.getElementById('layout-icon2')
       divIcon1.classList.add('active-icon')
       divIcon2.classList.remove('active-icon')
-      const bills = new Bills({ document, onNavigate, store, localStorage  })
+      const bills = new Bills({ document, onNavigate, store, localStorage })
       bills.getBills().then(data => {
+        console.log('Données des bills chargées (hash):', data)
         rootDiv.innerHTML = BillsUI({ data })
         const divIcon1 = document.getElementById('layout-icon1')
         const divIcon2 = document.getElementById('layout-icon2')
@@ -90,7 +97,9 @@ export default () => {
         divIcon2.classList.remove('active-icon')
         new Bills({ document, onNavigate, store, localStorage })
       }).catch(error => {
+        console.log({ pathname: window.location.hash, error })
         rootDiv.innerHTML = ROUTES({ pathname: window.location.hash, error })
+
       })
     } else if (window.location.hash === ROUTES_PATH['NewBill']) {
       rootDiv.innerHTML = ROUTES({ pathname: window.location.hash, loading: true })
@@ -106,6 +115,7 @@ export default () => {
         rootDiv.innerHTML = DashboardUI({ data: { bills } })
         new Dashboard({ document, onNavigate, store, bills, localStorage })
       }).catch(error => {
+        console.log({ pathname: window.location.hash, error })
         rootDiv.innerHTML = ROUTES({ pathname: window.location.hash, error })
       })
     }

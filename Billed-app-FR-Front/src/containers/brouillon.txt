@@ -1,0 +1,435 @@
+import { formatDate } from '../app/format.js'
+import DashboardFormUI from '../views/DashboardFormUI.js'
+import BigBilledIcon from '../assets/svg/big_billed.js'
+import { ROUTES_PATH } from '../constants/routes.js'
+import USERS_TEST from '../constants/usersTest.js'
+import Logout from "./Logout.js"
+
+export const filteredBills = (data, status) => {
+  return (data && data.length) ?
+    data.filter(bill => {
+      let selectCondition
+
+      // in jest environment
+      if (typeof jest !== 'undefined') {
+        selectCondition = (bill.status === status)
+      }
+      /* istanbul ignore next */
+      else {
+        // in prod environment
+        const userEmail = JSON.parse(localStorage.getItem("user")).email
+        selectCondition =
+          (bill.status === status) &&
+          ![...USERS_TEST, userEmail].includes(bill.email)
+      }
+
+      return selectCondition
+    }) : []
+}
+
+export const card = (bill) => {
+  const firstAndLastNames = bill.email.split('@')[0]
+  const firstName = firstAndLastNames.includes('.') ?
+    firstAndLastNames.split('.')[0] : ''
+  const lastName = firstAndLastNames.includes('.') ?
+    firstAndLastNames.split('.')[1] : firstAndLastNames
+
+  // Ajout d'informations sur le fichier
+  const fileInfo = bill.fileName ?
+    `<div class='file-info-container'>
+      <span>Fichier : ${bill.fileName}</span>
+      <span>Type : ${bill.type}</span>
+    </div>` : ''
+
+  return (`
+    <div class='bill-card' id='open-bill${bill.id}' data-testid='open-bill${bill.id}'>
+      <div class='bill-card-name-container'>
+        <div class='bill-card-name'> ${firstName} ${lastName} </div>
+        <span class='bill-card-grey'> ... </span>
+      </div>
+      <div class='name-price-container'>
+        <span> ${bill.name} </span>
+        <span> ${bill.amount} € </span>
+      </div>
+      <div class='date-type-container'>
+        <span> ${formatDate(bill.date)} </span>
+        <span> ${bill.type} </span>
+      </div>
+      ${fileInfo}
+    </div>
+  `)
+}
+
+export const cards = (bills) => {
+  return bills && bills.length ? bills.map(bill => card(bill)).join("") : ""
+}
+
+export const getStatus = (index) => {
+  switch (index) {
+    case 1:
+      return "pending"
+    case 2:
+      return "accepted"
+    case 3:
+      return "refused"
+  }
+}
+
+export default class {
+  constructor({ document, onNavigate, store, bills, localStorage }) {
+    this.document = document
+    this.onNavigate = onNavigate
+    this.store = store
+    $('#arrow-icon1').click((e) => this.handleShowTickets(e, bills, 1))
+    $('#arrow-icon2').click((e) => this.handleShowTickets(e, bills, 2))
+    $('#arrow-icon3').click((e) => this.handleShowTickets(e, bills, 3))
+    new Logout({ localStorage, onNavigate })
+  }
+
+  handleClickIconEye = () => {
+    const billUrl = $('#icon-eye-d').attr("data-bill-url")
+    const imgWidth = Math.floor($('#modaleFileAdmin1').width() * 0.8)
+    $('#modaleFileAdmin1').find(".modal-body").html(`<div style='text-align: center;'><img width=${imgWidth} src=${billUrl} alt="Bill"/></div>`)
+    if (typeof $('#modaleFileAdmin1').modal === 'function') $('#modaleFileAdmin1').modal('show')
+  }
+
+  handleEditTicket(e, bill, bills) {
+    if (this.counter === undefined || this.id !== bill.id) this.counter = 0
+    if (this.id === undefined || this.id !== bill.id) this.id = bill.id
+    if (this.counter % 2 === 0) {
+      bills.forEach(b => {
+        $(`#open-bill${b.id}`).css({ background: '#0D5AE5' })
+      })
+      $(`#open-bill${bill.id}`).css({ background: '#2A2B35' })
+      $('.dashboard-right-container div').html(DashboardFormUI(bill))
+      $('.vertical-navbar').css({ height: '150vh' })
+      this.counter++
+    } else {
+      $(`#open-bill${bill.id}`).css({ background: '#0D5AE5' })
+
+      $('.dashboard-right-container div').html(`
+        <div id="big-billed-icon" data-testid="big-billed-icon"> ${BigBilledIcon} </div>
+      `)
+      $('.vertical-navbar').css({ height: '120vh' })
+      this.counter++
+    }
+    $('#icon-eye-d').click(this.handleClickIconEye)
+    $('#btn-accept-bill').click((e) => this.handleAcceptSubmit(e, bill))
+    $('#btn-refuse-bill').click((e) => this.handleRefuseSubmit(e, bill))
+  }
+
+  handleAcceptSubmit = (e, bill) => {
+    const newBill = {
+      ...bill,
+      status: 'accepted',
+      commentAdmin: $('#commentary2').val()
+    }
+    this.updateBill(newBill)
+    this.onNavigate(ROUTES_PATH['Dashboard'])
+  }
+
+
+  handleRefuseSubmit = (e, bill) => {
+    const newBill = {
+      ...bill,
+      status: 'refused',
+      commentAdmin: $('#commentary2').val(),
+      fileName: bill.fileName || bill.name, // Préserver le nom du fichier
+      fileUrl: bill.fileUrl, // Préserver l'URL du fichier
+      type: bill.type // Préserver le type de fichier
+    }
+    this.updateBill(newBill)
+    this.onNavigate(ROUTES_PATH['Dashboard'])
+  }
+
+  handleShowTickets(e, bills, index) {
+    if (this.counter === undefined || this.index !== index) this.counter = 0
+    if (this.index === undefined || this.index !== index) this.index = index
+    if (this.counter % 2 === 0) {
+      $(`#arrow-icon${this.index}`).css({ transform: 'rotate(0deg)' })
+      $(`#status-bills-container${this.index}`)
+        .html(cards(filteredBills(bills, getStatus(this.index))))
+      this.counter++
+    } else {
+      $(`#arrow-icon${this.index}`).css({ transform: 'rotate(90deg)' })
+      $(`#status-bills-container${this.index}`)
+        .html("")
+      this.counter++
+    }
+
+    bills.forEach(bill => {
+      $(`#open-bill${bill.id}`).click((e) => this.handleEditTicket(e, bill, bills))
+    })
+
+    return bills
+  }
+
+  getBillsAllUsers = () => {
+    if (this.store) {
+      return this.store
+        .bills()
+        .list()
+        .then(snapshot => {
+          console.log('Données brutes des factures:', snapshot); // Pour le débogage
+          const bills = snapshot
+            .map(doc => {
+              // S'assurer que toutes les propriétés nécessaires sont présentes
+              const fileName = doc.fileName || doc.name || 'Document sans nom'
+              const fileType = doc.type || 'Type non spécifié'
+
+              return {
+                id: doc.id,
+                ...doc,
+                date: doc.date,
+                status: doc.status,
+                fileName: fileName,
+                type: fileType,
+                fileUrl: doc.fileUrl || null
+              }
+            })
+          console.log('Factures traitées:', bills); // Pour le débogage
+          return bills
+        })
+        .catch(error => {
+          throw error;
+        })
+    }
+  }
+
+  // not need to cover this function by tests
+  /* istanbul ignore next */
+  updateBill = (bill) => {
+    if (this.store) {
+      return this.store
+        .bills()
+        .update({ data: JSON.stringify(bill), selector: bill.id })
+        .then(bill => bill)
+        .catch(console.log)
+    }
+  }
+}
+
+
+Oui, c'est exactement le code qui gère la récupération des factures ! Plus précisément, la méthode `getBills()` est responsable de :
+
+1. La récupération des données via le store :
+```javascript
+this.store.bills().list()
+```
+
+2. Le formatage des factures récupérées avec :
+```javascript
+.map(doc => {
+  return {
+    ...doc,
+    date: formatDate(doc.date),
+    status: formatStatus(doc.status)
+  }
+})
+```
+
+3. Le tri des factures du plus récent au plus ancien :
+```javascript
+.sort((a, b) => {
+  const dateA = new Date(a.date).getTime()
+  const dateB = new Date(b.date).getTime()
+  if (dateA > dateB) return -1
+  if (dateA < dateB) return 1
+  return 0
+})
+```
+
+Pour résoudre votre problème de format de fichier "null", il faudrait probablement modifier :
+
+1. La partie store qui récupère les données
+2. Ajouter une validation dans le mapping des données
+
+Voici comment on pourrait améliorer ce code :
+
+```javascript
+getBills = () => {
+  if (this.store) {
+    return this.store
+      .bills()
+      .list()
+      .then(snapshot => {
+        const bills = snapshot
+          .map(doc => {
+            try {
+              // Ajout de la validation du format de fichier
+              const fileFormat = doc.fileName ? 
+                doc.fileName.split('.').pop() : 
+                'format inconnu';
+                
+              return {
+                ...doc,
+                date: formatDate(doc.date),
+                status: formatStatus(doc.status),
+                fileFormat: fileFormat, // Ajout du format de fichier
+                fileName: doc.fileName || 'Document sans nom' // Valeur par défaut
+              }
+            } catch (e) {
+              console.log(e, 'for', doc)
+              return {
+                ...doc,
+                date: doc.date,
+                status: formatStatus(doc.status),
+                fileFormat: 'format inconnu',
+                fileName: 'Document sans nom'
+              }
+            }
+          })
+          .sort((a, b) => new Date(b.date) - new Date(a.date))
+
+        return bills
+      })
+  }
+}
+```
+Oui, c'est exactement le code qui gère la récupération des factures ! Plus précisément, la méthode `getBills()` est responsable de :
+
+1. La récupération des données via le store :
+```javascript
+this.store.bills().list()
+```
+
+2. Le formatage des factures récupérées avec :
+```javascript
+.map(doc => {
+  return {
+    ...doc,
+    date: formatDate(doc.date),
+    status: formatStatus(doc.status)
+  }
+})
+```
+
+3. Le tri des factures du plus récent au plus ancien :
+```javascript
+.sort((a, b) => {
+  const dateA = new Date(a.date).getTime()
+  const dateB = new Date(b.date).getTime()
+  if (dateA > dateB) return -1
+  if (dateA < dateB) return 1
+  return 0
+})
+```
+
+Pour résoudre votre problème de format de fichier "null", il faudrait probablement modifier :
+
+1. La partie store qui récupère les données
+2. Ajouter une validation dans le mapping des données
+
+Voici comment on pourrait améliorer ce code :
+
+```javascript
+getBills = () => {
+  if (this.store) {
+    return this.store
+      .bills()
+      .list()
+      .then(snapshot => {
+        const bills = snapshot
+          .map(doc => {
+            try {
+              // Ajout de la validation du format de fichier
+              const fileFormat = doc.fileName ? 
+                doc.fileName.split('.').pop() : 
+                'format inconnu';
+                
+              return {
+                ...doc,
+                date: formatDate(doc.date),
+                status: formatStatus(doc.status),
+                fileFormat: fileFormat, // Ajout du format de fichier
+                fileName: doc.fileName || 'Document sans nom' // Valeur par défaut
+              }
+            } catch (e) {
+              console.log(e, 'for', doc)
+              return {
+                ...doc,
+                date: doc.date,
+                status: formatStatus(doc.status),
+                fileFormat: 'format inconnu',
+                fileName: 'Document sans nom'
+              }
+            }
+          })
+          .sort((a, b) => new Date(b.date) - new Date(a.date))
+
+        return bills
+      })
+  }
+}
+```
+
+Oui, c'est exactement le code qui gère la récupération des factures ! Plus précisément, la méthode getBills() est responsable de :
+
+La récupération des données via le store :
+
+javascriptCopythis.store.bills().list()
+
+Le formatage des factures récupérées avec :
+
+javascriptCopy.map(doc => {
+  return {
+    ...doc,
+    date: formatDate(doc.date),
+    status: formatStatus(doc.status)
+  }
+})
+
+Le tri des factures du plus récent au plus ancien :
+
+javascriptCopy.sort((a, b) => {
+  const dateA = new Date(a.date).getTime()
+  const dateB = new Date(b.date).getTime()
+  if (dateA > dateB) return -1
+  if (dateA < dateB) return 1
+  return 0
+})
+Pour résoudre votre problème de format de fichier "null", il faudrait probablement modifier :
+
+La partie store qui récupère les données
+Ajouter une validation dans le mapping des données
+
+Voici comment on pourrait améliorer ce code :
+javascriptCopygetBills = () => {
+  if (this.store) {
+    return this.store
+      .bills()
+      .list()
+      .then(snapshot => {
+        const bills = snapshot
+          .map(doc => {
+            try {
+              // Ajout de la validation du format de fichier
+              const fileFormat = doc.fileName ? 
+                doc.fileName.split('.').pop() : 
+                'format inconnu';
+                
+              return {
+                ...doc,
+                date: formatDate(doc.date),
+                status: formatStatus(doc.status),
+                fileFormat: fileFormat, // Ajout du format de fichier
+                fileName: doc.fileName || 'Document sans nom' // Valeur par défaut
+              }
+            } catch (e) {
+              console.log(e, 'for', doc)
+              return {
+                ...doc,
+                date: doc.date,
+                status: formatStatus(doc.status),
+                fileFormat: 'format inconnu',
+                fileName: 'Document sans nom'
+              }
+            }
+          })
+          .sort((a, b) => new Date(b.date) - new Date(a.date))
+
+        return bills
+      })
+  }
+}
+Voulez-vous que je vous montre aussi comment modifier le store pour mieux gérer les formats de fichiers ?
