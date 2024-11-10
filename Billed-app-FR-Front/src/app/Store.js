@@ -1,4 +1,3 @@
-
 const jsonOrThrowIfError = async (response) => {
   if (!response.ok) throw new Error((await response.json()).message)
   return response.json()
@@ -67,7 +66,6 @@ class Store {
 
   bill = bid => (new ApiEntity({ key: 'bills', api: this.api })).select({ selector: bid })
   bills = () => new ApiEntity({ key: 'bills', api: this.api })
-
 }
 
 export default new Store()

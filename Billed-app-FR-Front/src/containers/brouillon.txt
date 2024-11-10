@@ -433,3 +433,1461 @@ javascriptCopygetBills = () => {
   }
 }
 Voulez-vous que je vous montre aussi comment modifier le store pour mieux gérer les formats de fichiers ?
+
+//
+
+/*
+import { screen, waitFor, fireEvent } from "@testing-library/dom";
+import BillsUI from "../views/BillsUI.js";
+import Bills from "../containers/Bills.js";
+import { bills } from "../fixtures/bills.js";
+import { ROUTES_PATH } from "../constants/routes.js";
+import { localStorageMock } from "../__mocks__/localStorage.js";
+import router from "../app/Router.js";
+import '@testing-library/jest-dom/extend-expect';
+
+describe("Given I am connected as an employee", () => {
+  describe("When I am on Bills Page", () => {
+    beforeEach(() => {
+      Object.defineProperty(window, 'localStorage', { value: localStorageMock });
+      window.localStorage.setItem('user', JSON.stringify({
+        type: 'Employee',
+        email: 'employee@test.com'
+      }));
+      const root = document.createElement("div");
+      root.setAttribute("id", "root");
+      document.body.appendChild(root);
+      router();
+      window.onNavigate(ROUTES_PATH.Bills);
+    });
+
+    afterEach(() => {
+      document.body.innerHTML = '';
+      jest.clearAllMocks();
+    });
+    // TRI FACTURES
+    test("Then bills should be ordered from earliest to latest", () => {
+      document.body.innerHTML = BillsUI({ data: bills })
+
+      const dates = screen.getAllByText(
+        /^(19|20)\d\d[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$/i
+      ).map(a => a.innerHTML)
+
+      const antiChrono = (a, b) => ((a < b) ? 1 : -1)
+      const datesSorted = [...dates].sort(antiChrono)
+
+      expect(dates).toEqual(datesSorted)
+    })
+    // Test d'initialisation
+    test("Then Bills class should be properly initialized", () => {
+      // Création d'un mock de document
+      const document = {
+        querySelector: jest.fn(),
+        querySelectorAll: jest.fn().mockReturnValue([])
+      };
+
+      const billsInstance = new Bills({
+        document,
+        onNavigate: jest.fn(),
+        store: null,
+        localStorage: window.localStorage
+      });
+
+      expect(billsInstance.document).toBeDefined();
+      expect(billsInstance.onNavigate).toBeDefined();
+      expect(billsInstance.store).toBeNull();
+      expect(billsInstance.localStorage).toBeDefined();
+    });
+
+    // Test du rendu de la page
+    test("Then bills page should be rendered correctly", () => {
+      const html = BillsUI({ data: bills });
+      document.body.innerHTML = html;
+
+      const billsTable = screen.getByTestId("tbody");
+      const iconEyes = screen.getAllByTestId("icon-eye");
+
+      expect(billsTable).toBeTruthy();
+      expect(iconEyes.length).toBe(bills.length);
+    });
+
+    // Test complet de handleClickNewBill
+    describe("When I click on New Bill button", () => {
+      test("Then I should be redirected to NewBill page", () => {
+        const onNavigateMock = jest.fn();
+        const billsInstance = new Bills({
+          document,
+          onNavigate: onNavigateMock,
+          store: null,
+          localStorage: window.localStorage
+        });
+
+        const handleClickNewBill = jest.spyOn(billsInstance, 'handleClickNewBill');
+        const newBillBtn = screen.getByTestId("btn-new-bill");
+
+        fireEvent.click(newBillBtn);
+
+        expect(handleClickNewBill).toHaveBeenCalled();
+        expect(onNavigateMock).toHaveBeenCalledWith(ROUTES_PATH['NewBill']);
+      });
+    });
+
+    // Tests complets de handleClickIconEye
+
+    describe("When I click on icon eye", () => {
+      test("Then it should handle missing bill URL", () => {
+        document.body.innerHTML = BillsUI({ data: bills });
+
+        const modal = document.getElementById('modaleFile');
+        if (modal) modal.remove(); // Nettoyage si la modale existe déjà
+
+        const billsInstance = new Bills({
+          document,
+          onNavigate: jest.fn(),
+          store: null,
+          localStorage: window.localStorage
+        });
+
+        const iconEye = screen.getAllByTestId("icon-eye")[0];
+        iconEye.removeAttribute("data-bill-url");
+
+        fireEvent.click(iconEye);
+
+        const modalBody = document.querySelector('.modal-body');
+        expect(modalBody).toBe(null);
+      });
+    });
+
+  });
+
+  // Tests complets de getBills
+  //Correction du test pour les données corrompues
+  describe("When I fetch bills", () => {
+    test("Then it should handle corrupted data", async () => {
+      const corruptedBills = [
+        {
+          id: "1",
+          status: "pending",
+          date: null,
+          amount: 100
+        }
+      ];
+
+      const getSpy = jest.fn().mockImplementation(() => ({
+        list: () => Promise.resolve(corruptedBills)
+      }));
+
+      const billsInstance = new Bills({
+        document,
+        onNavigate: jest.fn(),
+        store: { bills: getSpy },
+        localStorage: window.localStorage
+      });
+
+      const formattedBills = await billsInstance.getBills();
+      expect(formattedBills[0].date).toBe("");
+    });
+  });
+
+
+  test("Then it should handle API errors", async () => {
+    const getSpy = jest.fn().mockImplementation(() => {
+      return {
+        list: () => Promise.reject(new Error("API Error"))
+      };
+    });
+
+    const billsInstance = new Bills({
+      document,
+      onNavigate: jest.fn(),
+      store: { bills: getSpy },
+      localStorage: window.localStorage
+    });
+
+    await expect(billsInstance.getBills()).rejects.toThrow("API Error");
+    expect(getSpy).toHaveBeenCalled();
+  });
+
+  test("Then it should handle corrupted data", async () => {
+    const corruptedBills = [
+      { ...bills[0], date: null },
+      { ...bills[1], status: undefined }
+    ];
+
+    const getSpy = jest.fn().mockImplementation(() => {
+      return {
+        list: () => Promise.resolve(corruptedBills)
+      };
+    });
+
+    const billsInstance = new Bills({
+      document,
+      onNavigate: jest.fn(),
+      store: { bills: getSpy },
+      localStorage: window.localStorage
+    });
+
+    const formattedBills = await billsInstance.getBills();
+
+    expect(formattedBills[0].date).toBe('');
+    expect(formattedBills[1].status).toBe('pending');
+  });
+});
+
+// Test de l'ordre des factures
+test("Then bills should be ordered from earliest to latest", () => {
+  document.body.innerHTML = BillsUI({ data: bills })
+
+  const dates = screen.getAllByText(
+    /^(19|20)\d\d[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$/i
+  ).map(a => a.innerHTML)
+
+  const antiChrono = (a, b) => ((a < b) ? 1 : -1)
+  const datesSorted = [...dates].sort(antiChrono)
+
+  expect(dates).toEqual(datesSorted)
+})
+
+// Pour lignes 38, 41 - Test de handleClickIconEye avec différentes conditions
+test("Then handleClickIconEye should handle various icon states", async () => {
+  document.body.innerHTML = BillsUI({ data: bills });
+
+  const billsInstance = new Bills({
+    document,
+    onNavigate: jest.fn(),
+    store: null,
+    localStorage: window.localStorage
+  });
+
+  // Test avec une icon sans attribut data-bill-url
+  const iconWithoutUrl = document.createElement('div');
+  billsInstance.handleClickIconEye(iconWithoutUrl);
+
+  // Test avec une icon avec URL invalide
+  const iconWithInvalidUrl = document.createElement('div');
+  iconWithInvalidUrl.setAttribute('data-bill-url', '');
+  billsInstance.handleClickIconEye(iconWithInvalidUrl);
+
+  expect(document.querySelector('.modal-body')).toBeDefined();
+});
+
+// Pour lignes 65-66 - Test de getBills avec données non formatables
+test("Then getBills should handle malformed dates", async () => {
+  const billsInstance = new Bills({
+    document,
+    onNavigate: jest.fn(),
+    store: {
+      bills: jest.fn().mockImplementation(() => ({
+        list: () => Promise.resolve([
+          {
+            id: '1',
+            status: 'pending',
+            date: 'invalid-date',
+            amount: 100
+          }
+        ])
+      }))
+    },
+    localStorage: window.localStorage
+  });
+
+  const bills = await billsInstance.getBills();
+  expect(bills[0].date).toBe('');
+});
+test("Then bills dates should be correctly formatted", async () => {
+  const billsInstance = new Bills({
+    document,
+    onNavigate: jest.fn(),
+    store: {
+      bills: jest.fn().mockImplementation(() => ({
+        list: () => Promise.resolve([
+          {
+            id: '1',
+            status: 'pending',
+            date: '2021-11-17', // date valide
+            amount: 100
+          }
+        ])
+      }))
+    },
+    localStorage: window.localStorage
+  });
+
+  const formattedBills = await billsInstance.getBills();
+
+  // Vérification plus précise du format de date
+  formattedBills.forEach(bill => {
+    expect(bill.date).toMatch(/^[0-9]{1,2}\s[A-Za-z]{3,10}\.\s[0-9]{4}$/);
+  });
+});
+test("Then bills should handle localStorage correctly", () => {
+  const localStorageMock = {
+    getItem: jest.fn().mockReturnValue(JSON.stringify({ type: 'Employee' })),
+    setItem: jest.fn()
+  };
+
+  const billsInstance = new Bills({
+    document,
+    onNavigate: jest.fn(),
+    store: null,
+    localStorage: localStorageMock
+  });
+
+  expect(localStorageMock.getItem).toBeDefined();
+  expect(localStorageMock.getItem('user')).toBeTruthy();
+});
+
+
+
+
+
+/*
+
+describe("Given I am connected as an employee", () => {
+  describe("When I am on Bills Page", () => {
+    test("Then bills should be ordered from earliest to latest", () => {
+      const html = BillsUI({ data: bills })
+      document.body.innerHTML = html
+
+      const dates = Array.from(document.querySelectorAll('tbody tr'))
+        .map(row => row.querySelector('td:nth-child(3)').textContent)
+
+      // Log the dates for debugging
+      console.log('Dates before sorting:', dates)
+
+      const datesSorted = [...dates].sort((a, b) => {
+        return new Date(b) - new Date(a)
+      })
+
+      console.log('Dates after sorting:', datesSorted)
+
+      expect(dates).toEqual(datesSorted)
+    })
+    test("Then bills should be ordered from earliest to latest", () => {
+      document.body.innerHTML = BillsUI({ data: bills })
+      const dates = screen.getAllByText(/^(19|20)\d\d[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$/i).map(a => a.innerHTML)
+      console.log('Dates actuelles :', dates)
+
+      // Tri chronologique simple avec localeCompare
+      const datesSorted = [...dates].sort((a, b) => a.localeCompare(b))
+
+      console.log('Dates triées :', datesSorted)
+      expect(dates).toEqual(datesSorted)
+    })
+
+    test("Then each bill should have a valid date format", () => {
+      const html = BillsUI({ data: bills })
+      document.body.innerHTML = html
+
+      const dates = Array.from(document.querySelectorAll('tbody tr'))
+        .map(row => row.querySelector('td:nth-child(3)').textContent)
+
+      dates.forEach(date => {
+        expect(isNaN(new Date(date).getTime())).toBe(false)
+      })
+    })
+  })
+})
+*/
+/*
+import { screen, waitFor, fireEvent } from "@testing-library/dom"
+import BillsUI from "../views/BillsUI.js"
+import Bills from "../containers/Bills.js"
+import { ROUTES, ROUTES_PATH } from "../constants/routes"
+import { localStorageMock } from "../__mocks__/localStorage.js"
+import { bills } from "../fixtures/bills.js"
+import router from "../app/Router.js"
+
+// Setup jQuery mock avec toutes les méthodes nécessaires
+global.$ = jest.fn(() => ({
+  width: () => 100,
+  find: () => ({
+    html: jest.fn()
+})
+  modal: jest.fn(),
+  click: jest.fn(),
+  on: jest.fn(),
+  val: jest.fn(),
+  text: jest.fn(),
+  append: jest.fn(),
+  css: jest.fn(),
+  show: jest.fn(),
+  hide: jest.fn(),
+  addClass: jest.fn(),
+  removeClass: jest.fn()
+}))
+
+describe("Given I am connected as an employee", () => {
+  describe("When I am on Bills Page", () => {
+    beforeEach(() => {
+      Object.defineProperty(window, 'localStorage', { value: localStorageMock })
+      window.localStorage.setItem('user', JSON.stringify({ type: 'Employee' }))
+    })
+
+    test("Then bill icon in vertical layout should be highlighted", async () => {
+      const root = document.createElement("div")
+      root.setAttribute("id", "root")
+      document.body.append(root)
+      router()
+      window.onNavigate(ROUTES_PATH.Bills)
+
+      await waitFor(() => screen.getByTestId('icon-window'))
+      const windowIcon = screen.getByTestId('icon-window')
+      expect(windowIcon.classList.contains('active-icon')).toBe(true)
+    })
+
+    test("Then bills should be ordered from earliest to latest", () => {
+      document.body.innerHTML = BillsUI({ data: bills })
+      const dates = screen.getAllByText(/^(19|20)\d\d[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$/i)
+        .map(a => a.innerHTML)
+
+      const antiChrono = (a, b) => ((a < b) ? 1 : -1)
+      const datesSorted = [...dates].sort(antiChrono)
+
+      expect(dates).toEqual(datesSorted)
+    })
+  })
+
+  describe("When I click on the new bill button", () => {
+    test("Then I should be redirected to NewBill page", () => {
+      const onNavigate = jest.fn()
+      const billsInstance = new Bills({
+        document,
+        onNavigate,
+        store: null,
+        localStorage: window.localStorage
+      })
+
+      document.body.innerHTML = BillsUI({ data: bills })
+      const newBillButton = screen.getByTestId('btn-new-bill')
+
+      // Utiliser fireEvent au lieu de jQuery click
+      fireEvent.click(newBillButton)
+      expect(onNavigate).toHaveBeenCalledWith(ROUTES_PATH.NewBill)
+    })
+  })
+
+  describe("When I click on the eye icon", () => {
+    test("Then it should open the bill proof modal", () => {
+      document.body.innerHTML = BillsUI({ data: bills })
+
+      const billsInstance = new Bills({
+        document,
+        onNavigate: (pathname) => {
+          document.body.innerHTML = ROUTES({ pathname })
+        },
+        store: null,
+        localStorage: window.localStorage
+      })
+
+      // Mock de la fonction handleClickIconEye
+      const handleClickIconEye = jest.spyOn(billsInstance, 'handleClickIconEye')
+      const eye = screen.getAllByTestId('icon-eye')[0]
+
+      // Utiliser fireEvent au lieu de jQuery click
+      fireEvent.click(eye)
+
+      expect(handleClickIconEye).toHaveBeenCalled()
+      expect($).toHaveBeenCalled()
+      expect($.mock.results[0].value.modal).toHaveBeenCalledWith('show')
+    })
+  })
+
+  describe("When there is an error accessing localStorage", () => {
+    test("Then getBills should throw an error", () => {
+      const billsInstance = new Bills({
+        document,
+        onNavigate: null,
+        store: {
+          bills: () => ({
+            list: () => Promise.reject(new Error("Erreur de test"))
+          })
+        },
+        localStorage: null
+      })
+
+      return expect(billsInstance.getBills()).rejects.toThrow("Erreur de test")
+    })
+  })
+
+  describe("When the bills list is empty", () => {
+    test("Then the table should be empty but present", () => {
+      const html = BillsUI({ data: [] })
+      document.body.innerHTML = html
+
+      const table = document.getElementById("example")
+      const tbody = screen.getByTestId("tbody")
+
+      expect(table).toBeTruthy()
+      expect(tbody.innerHTML.trim()).toBe("")
+    })
+  })
+
+  describe("When bills are displayed", () => {
+    test("Then they should show correct status", () => {
+      const billData = [{
+        status: 'pending',
+        date: '2021-01-01'
+      }]
+
+      document.body.innerHTML = BillsUI({ data: billData })
+      const statusCell = screen.getByText('pending')
+
+      expect(statusCell).toBeTruthy()
+    })
+
+    test("Then they should be sorted from latest to earliest", () => {
+      const billData = [
+        { date: '2021-01-01', status: 'pending' },
+        { date: '2021-02-01', status: 'accepted' }
+      ]
+
+      document.body.innerHTML = BillsUI({ data: billData })
+      const dates = Array.from(document.querySelectorAll('tbody tr'))
+        .map(tr => tr.children[2].textContent)
+
+      expect(new Date(dates[0]) > new Date(dates[1])).toBeTruthy()
+    })
+  })
+})
+
+*/
+
+
+
+
+/**
+ * @jest-environment jsdom
+ */
+/*
+import { screen, waitFor, fireEvent } from "@testing-library/dom";
+import BillsUI from "../views/BillsUI.js";
+import { bills } from "../fixtures/bills.js";
+import { ROUTES_PATH } from "../constants/routes.js";
+import { localStorageMock } from "../__mocks__/localStorage.js";
+import Bills from "../containers/Bills.js";
+import router from "../app/Router.js";
+import Dashboard from "../containers/Dashboard.js";
+import '@testing-library/jest-dom/extend-expect';
+
+/*
+describe("Given I am connected as an employee", () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'localStorage', { value: localStorageMock });
+    window.localStorage.setItem('user', JSON.stringify({ type: 'Employee' }));
+    const root = document.createElement("div");
+    root.setAttribute("id", "root");
+    document.body.append(root);
+    router();
+  });
+
+  describe("When I am on Bills Page", () => {
+    test("Then bill icon in vertical layout should be highlighted", async () => {
+      window.onNavigate(ROUTES_PATH.Bills);
+      await waitFor(() => screen.getByTestId('icon-window'));
+      const windowIcon = screen.getByTestId('icon-window');
+      expect(windowIcon.classList.contains('active-icon')).toBe(true);
+    });
+
+    test("Then bills should be ordered from earliest to latest", () => {
+      document.body.innerHTML = BillsUI({ data: bills });
+      const dates = screen.getAllByText(/^(19|20)\d\d[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$/i).map(a => a.innerHTML);
+      const datesSorted = [...dates].sort((a, b) => (a < b ? 1 : -1));
+      expect(dates).toEqual(datesSorted);
+    });
+
+    test("getBills should handle API errors gracefully", async () => {
+      const storeMock = {
+        bills: jest.fn().mockImplementation(() => ({
+          list: jest.fn().mockRejectedValueOnce(new Error("Erreur API"))
+        }))
+      };
+      const billsInstance = new Bills({ document, onNavigate: jest.fn(), store: storeMock, localStorage: window.localStorage });
+      await expect(billsInstance.getBills()).rejects.toThrow("Erreur API");
+    });
+
+    test("BillsUI should handle empty data correctly", () => {
+      document.body.innerHTML = BillsUI({ data: [] });
+      const billsTable = screen.getByTestId("bills-table");
+      expect(billsTable.innerHTML).toContain("Aucune facture");
+    });
+
+    test("When I click on the eye icon, it should open the bill proof modal", async () => {
+      document.body.innerHTML = BillsUI({ data: bills });
+      document.body.innerHTML += `<div id="modaleFile" class="modal"><div class="modal-body"><img id="bill-proof-modal" width="500" /></div></div>`;
+      const billsInstance = new Bills({ document, onNavigate: jest.fn(), store: null, localStorage: window.localStorage });
+      const iconEye = screen.getAllByTestId("icon-eye")[0];
+      const billUrl = "http://localhost:5678/public/4b392f446047ced066990b0627cfa444";
+      iconEye.setAttribute("data-bill-url", billUrl);
+      await billsInstance.handleClickIconEye(iconEye);
+      const billImage = document.getElementById("bill-proof-modal");
+      expect(billImage.src).toBe(billUrl);
+    });
+
+    test("Bills should have valid date format", () => {
+      document.body.innerHTML = BillsUI({ data: bills });
+      const dates = screen.getAllByText(/^(19|20)\d\d[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$/i);
+      dates.forEach(date => {
+        const dateValue = new Date(date.innerHTML);
+        expect(date.innerHTML).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        expect(dateValue instanceof Date && !isNaN(dateValue)).toBe(true);
+        expect(dateValue.getFullYear()).toBeGreaterThanOrEqual(2000);
+        expect(dateValue.getFullYear()).toBeLessThanOrEqual(new Date().getFullYear());
+      });
+    });
+
+    test("Bills should handle localStorage errors", () => {
+      Object.defineProperty(window, "localStorage", {
+        value: {
+          getItem: jest.fn(() => { throw new Error("localStorage n'est pas disponible"); })
+        }
+      });
+      expect(() => {
+        new Bills({ document, onNavigate: jest.fn(), store: null, localStorage: window.localStorage }).getBills();
+      }).toThrow("localStorage n'est pas disponible");
+    });
+
+    test("Bills should display correct status", () => {
+      document.body.innerHTML = BillsUI({ data: [{ status: "pending" }] });
+      const statusElement = screen.getByText("pending");
+      expect(statusElement.classList.contains("status-pending")).toBe(true);
+    });
+
+    test("getBills should return bills sorted from latest to earliest", async () => {
+      const mockBills = [
+        { date: "2023-12-25" },
+        { date: "2023-06-18" },
+        { date: "2023-01-10" }
+      ];
+      const billsInstance = new Bills({
+        document,
+        onNavigate: jest.fn(),
+        store: { bills: () => ({ list: () => Promise.resolve(mockBills) }) },
+        localStorage: window.localStorage
+      });
+      const result = await billsInstance.getBills();
+      const dates = result.map(bill => new Date(bill.date).getTime());
+      const isSorted = dates.slice(1).every((date, i) => date <= dates[i]);
+      expect(isSorted).toBe(true);
+    });
+
+    test("When the image fails to load, it should display an error message", async () => {
+      document.body.innerHTML = BillsUI({ data: bills });
+      document.body.innerHTML += `<div id="modaleFile" class="modal"><div class="modal-body"><div class="error-message">Fichier non trouvé</div></div></div>`;
+      const billsInstance = new Bills({ document, onNavigate: jest.fn(), store: null, localStorage: window.localStorage });
+      const iconEye = screen.getAllByTestId("icon-eye")[0];
+      const invalidUrl = "invalid-url";
+      iconEye.setAttribute("data-bill-url", invalidUrl);
+      await billsInstance.handleClickIconEye(iconEye);
+      const errorMessage = document.querySelector(".error-message");
+      expect(errorMessage.textContent).toBe("Fichier non trouvé");
+    });
+
+    test("Displays bills with 'pending' status when clicking on arrow-icon1", () => {
+      Object.defineProperty(window, "localStorage", {
+        value: { getItem: jest.fn(() => JSON.stringify({ email: "employee@test.com" })) },
+        writable: true
+      });
+      document.body.innerHTML = `<div id="arrow-icon1" data-testid="arrow-icon1"></div><div id="status-bills-container1" data-testid="status-bills-container1"></div>`;
+      const bills = [
+        { id: 1, status: "pending", email: "employee@test.com", date: "2023-12-01", name: "Test Bill", amount: 100, type: "Transport" },
+        { id: 2, status: "accepted", email: "employee@test.com", date: "2023-11-01", name: "Test Bill 2", amount: 200, type: "Meals" }
+      ];
+      const dashboard = new Dashboard({
+        document,
+        onNavigate: jest.fn(),
+        store: { bills: () => ({ list: () => Promise.resolve(bills) }) },
+        bills,
+        localStorage: window.localStorage
+      });
+      const arrowIcon = screen.getByTestId("arrow-icon1");
+      arrowIcon.click();
+      const statusContainer = screen.getByTestId("status-bills-container1");
+      expect(statusContainer.innerHTML).toContain("pending");
+    });
+  });
+});
+*/
+
+/*
+
+describe("Given I am connected as an employee", () => {
+  describe("When I am on Bills Page", () => {
+    test("Then bill icon in vertical layout should be highlighted", async () => {
+      Object.defineProperty(window, 'localStorage', { value: localStorageMock });
+      window.localStorage.setItem('user', JSON.stringify({ type: 'Employee' }));
+      const root = document.createElement("div");
+      root.setAttribute("id", "root");
+      document.body.append(root);
+      router();
+      window.onNavigate(ROUTES_PATH.Bills);
+
+      await waitFor(() => screen.getByTestId('icon-window'));
+      const windowIcon = screen.getByTestId('icon-window');
+      expect(windowIcon.classList.contains('active-icon')).toBe(true);
+    });
+
+    test("Then bills should be ordered from earliest to latest", () => {
+      document.body.innerHTML = BillsUI({ data: bills });
+      const dates = screen.getAllByText(/^(19|20)\d\d[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$/i)
+        .map(a => a.innerHTML);
+
+      const antiChrono = (a, b) => ((a < b) ? 1 : -1);
+      const datesSorted = [...dates].sort(antiChrono);
+
+      expect(dates).toEqual(datesSorted);
+    });
+  });
+
+  test("getBills should handle API errors gracefully", async () => {
+    const storeMock = {
+      bills: jest.fn().mockImplementation(() => ({
+        list: jest.fn().mockRejectedValueOnce(new Error("Erreur API"))
+      }))
+    };
+
+    const billsInstance = new Bills({
+      document,
+      onNavigate: jest.fn(),
+      store: storeMock,
+      localStorage: window.localStorage
+    });
+
+    await expect(billsInstance.getBills()).rejects.toThrow("Erreur API");
+  });
+
+  test("BillsUI should handle empty data correctly", () => {
+    document.body.innerHTML = BillsUI({ data: [] });
+    const billsTable = screen.getByTestId("bills-table");
+    expect(billsTable.innerHTML).toContain("Aucune facture");
+  });
+
+  test("When I click on the eye icon, it should open the bill proof modal", async () => {
+    document.body.innerHTML = BillsUI({ data: bills });
+    document.body.innerHTML += `
+        <div id="modaleFile" class="modal">
+          <div class="modal-body">
+            <img id="bill-proof-modal" width="500" />
+          </div>
+        </div>`;
+
+    const billsInstance = new Bills({
+      document,
+      onNavigate: jest.fn(),
+      store: null,
+      localStorage: window.localStorage
+    });
+
+    const iconEye = screen.getAllByTestId("icon-eye")[0];
+    const billUrl = "http://localhost:5678/public/4b392f446047ced066990b0627cfa444";
+
+    iconEye.setAttribute("data-bill-url", billUrl);
+
+    // Afficher la modale sans jQuery
+    await billsInstance.handleClickIconEye(iconEye);
+
+    const billImage = document.getElementById("bill-proof-modal");
+    expect(billImage.src).toBe(billUrl);
+  });
+
+  test("Bills should have valid date format", () => {
+    document.body.innerHTML = BillsUI({ data: bills });
+    const dates = screen.getAllByText(/^(19|20)\d\d[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$/i);
+
+    dates.forEach(date => {
+      const dateValue = new Date(date.innerHTML);
+      expect(date.innerHTML).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(dateValue instanceof Date && !isNaN(dateValue)).toBe(true);
+      expect(dateValue.getFullYear()).toBeGreaterThanOrEqual(2000);
+      expect(dateValue.getFullYear()).toBeLessThanOrEqual(new Date().getFullYear());
+    });
+  });
+
+  test("Bills should handle localStorage errors", () => {
+    Object.defineProperty(window, "localStorage", {
+      value: {
+        getItem: jest.fn(() => { throw new Error("localStorage n'est pas disponible"); })
+      }
+    });
+
+    expect(() => {
+      new Bills({
+        document,
+        onNavigate: jest.fn(),
+        store: null,
+        localStorage: window.localStorage
+      }).getBills();
+    }).toThrow("localStorage n'est pas disponible");
+  });
+
+
+  test("Bills should display correct status", () => {
+    document.body.innerHTML = BillsUI({
+      data: [{ status: "pending" }]
+    });
+
+    const statusElement = screen.getByText("pending");
+    expect(statusElement.classList.contains("status-pending")).toBe(true);
+  });
+
+  test("getBills should return bills sorted from latest to earliest", async () => {
+    const mockBills = [
+      { date: "2023-12-25" },
+      { date: "2023-06-18" },
+      { date: "2023-01-10" }
+    ];
+
+    const billsInstance = new Bills({
+      document,
+      onNavigate: jest.fn(),
+      store: {
+        bills: () => ({
+          list: () => Promise.resolve(mockBills)
+        })
+      },
+      localStorage: window.localStorage
+    });
+
+    const result = await billsInstance.getBills();
+
+    const dates = result.map(bill => new Date(bill.date).getTime());
+    const isSorted = dates.slice(1).every((date, i) => date <= dates[i]);
+    expect(isSorted).toBe(true);
+  });
+
+  test("When the image fails to load, it should display an error message", async () => {
+    document.body.innerHTML = BillsUI({ data: bills });
+    document.body.innerHTML += `
+        <div id="modaleFile" class="modal">
+          <div class="modal-body">
+            <div class="error-message">Fichier non trouvé</div>
+          </div>
+        </div>`;
+
+    const billsInstance = new Bills({
+      document,
+      onNavigate: jest.fn(),
+      store: null,
+      localStorage: window.localStorage
+    });
+
+    const iconEye = screen.getAllByTestId("icon-eye")[0];
+    const invalidUrl = "invalid-url";
+    iconEye.setAttribute("data-bill-url", invalidUrl);
+
+    await billsInstance.handleClickIconEye(iconEye);
+
+    const errorMessage = document.querySelector(".error-message");
+    expect(errorMessage.textContent).toBe("Fichier non trouvé");
+  });
+
+  test("Displays bills with 'pending' status when clicking on arrow-icon1", () => {
+    // Création d'un mock pour le localStorage
+    Object.defineProperty(window, "localStorage", {
+      value: {
+        getItem: jest.fn(() => JSON.stringify({ email: "employee@test.com" }))
+      },
+      writable: true
+    });
+
+    // Configuration du DOM avec les icônes nécessaires
+    document.body.innerHTML = `
+    <div id="arrow-icon1" data-testid="arrow-icon1"></div>
+    <div id="status-bills-container1" data-testid="status-bills-container1"></div>
+  `;
+
+    // Données de factures simulées
+    const bills = [
+      { id: 1, status: "pending", email: "employee@test.com", date: "2023-12-01", name: "Test Bill", amount: 100, type: "Transport" },
+      { id: 2, status: "accepted", email: "employee@test.com", date: "2023-11-01", name: "Test Bill 2", amount: 200, type: "Meals" }
+    ];
+
+    // Création de l'instance du Dashboard avec les factures
+    const dashboard = new Dashboard({
+      document,
+      onNavigate: jest.fn(),
+      store: { bills: () => ({ list: () => Promise.resolve(bills) }) },
+      bills,
+      localStorage: window.localStorage
+    });
+
+    // Simulation du clic pour afficher les factures "pending"
+    const arrowIcon = screen.getByTestId("arrow-icon1");
+    arrowIcon.click();
+
+    // Vérifiez si les factures affichées ont bien le statut "pending"
+    const statusContainer = screen.getByTestId("status-bills-container1");
+    expect(statusContainer.innerHTML).toContain("pending");
+  });
+
+});
+
+*/
+test bills
+
+
+/*
+
+describe("Given I am connected as an Employee", () => {
+  // Test for BillsUI.js  
+  describe("When I am on Bills page, there are a bill icon in vertical layout", () => {
+    test("Then, the icon should be highlighted", async () => {
+      Object.defineProperty(window, "localStorage", { value: localStorageMock });
+      window.localStorage.setItem(
+        "user",
+        JSON.stringify({
+          type: "Employee",
+        })
+      );
+      const root = document.createElement("div");
+      root.setAttribute("id", "root");
+      document.body.append(root);
+      router();
+      window.onNavigate(ROUTES_PATH.Bills);
+      await waitFor(() => screen.getByTestId("icon-window"));
+      const windowIcon = screen.getByTestId("icon-window");
+      const isIconActivated = windowIcon.classList.contains("active-icon");
+      expect(isIconActivated).toBeTruthy();
+    });
+    // le titre et le bouton "Nouvelle facture" sont correctement rendus
+    describe("When I am on Bills page, there are a title and a newBill button", () => {
+      test("Then, the title and the button should be render correctly", () => {
+        document.body.innerHTML = BillsUI({ data: [] });
+        expect(screen.getAllByText("Mes notes de frais")).toBeTruthy();
+        expect(screen.getByTestId("btn-new-bill")).toBeTruthy();
+      });
+    });
+
+    describe("Given I am connected as an employee", () => {
+      describe("When I am on Bills page with 3 bills", () => {
+        beforeEach(() => {
+          // Setup du DOM pour chaque test
+          document.body.innerHTML = BillsUI({ data: mockStore.bills().list() })
+        })
+
+        test("Then, bills should render 3 rows with correct data", () => {
+          // Sélectionner toutes les lignes du tableau (tr)
+          const rows = document.querySelectorAll('tbody tr')
+          expect(rows.length).toBe(3)
+
+          // Vérifier chaque colonne de la première ligne
+          const firstRow = rows[0]
+          const columns = firstRow.querySelectorAll('td')
+          expect(columns[0].textContent).toBe(mockStore.bills().list()[0].type)
+          expect(columns[1].textContent).toBe(mockStore.bills().list()[0].name)
+          expect(columns[2].textContent).toBe(mockStore.bills().list()[0].date)
+          expect(columns[3].textContent).toBe(`${mockStore.bills().list()[0].amount} €`)
+          expect(columns[4].textContent).toBe(mockStore.bills().list()[0].status)
+          expect(columns[5].querySelector('[data-testid="icon-eye"]')).toBeTruthy()
+        })
+
+        describe("When I am on Bills page, there are bills", () => {
+          test("Then, first bill data should contain the right type, name, date, amount, status and eye icon", () => {
+            document.body.innerHTML = BillsUI({ data: mockStore.bills().list() });
+
+            const bill = screen.getAllByTestId("bill");
+            const type = screen.getAllByTestId("type")[0];
+            const name = screen.getAllByTestId("name")[0];
+            const date = screen.getAllByTestId("date")[0];
+            const amount = screen.getAllByTestId("amount")[0];
+            const status = screen.getAllByTestId("status")[0];
+            const iconEye = screen.getAllByTestId("icon-eye")[0];
+
+            expect(bill.length).toBe(mockStore.bills().list().length);
+            expect(type.textContent).toBe(mockStore.bills().list()[0].type);
+            expect(name.textContent).toBe(mockStore.bills().list()[0].name);
+            expect(date.textContent).toBe(mockStore.bills().list()[0].date);
+            expect(amount.textContent).toBe(`${mockStore.bills().list()[0].amount} €`);
+            expect(status.textContent).toBe(mockStore.bills().list()[0].status);
+            expect(iconEye.textContent).toBeTruthy();
+          });
+        });
+        // Tests pour l'ordre des factures
+        describe("When I am on Bills page, there are 4 bills", () => {
+          test("Then, bills should be ordered from earliest to latest", () => {
+            document.body.innerHTML = BillsUI({ data: bills });
+
+            const dates = screen.getAllByText(/^(19|20)\d\d[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$/i).map((a) => a.innerHTML);
+            const antiChrono = (a, b) => (a < b ? 1 : -1);
+            const datesSorted = [...dates].sort(antiChrono);
+
+            expect(dates).toEqual(datesSorted);
+          });
+        });
+        describe("When I am on Bills page, and there are no bills", () => {
+          test("Then, no bills should be shown", () => {
+            document.body.innerHTML = BillsUI({ data: [] });
+            const bill = screen.queryByTestId("bill");
+            expect(bill).toBeNull();
+          });
+
+        });
+        describe("When I am on Bills page, but it is loading", () => {
+          test("Then, Loading page should be rendered", () => {
+            document.body.innerHTML = BillsUI({ loading: true });
+            expect(screen.getAllByText("Loading...")).toBeTruthy();
+          });
+        });
+        describe("When I am on Dashboard page but back-end send an error message", () => {
+          test("Then, Error page should be rendered", () => {
+            document.body.innerHTML = BillsUI({ error: "some error message" });
+            expect(screen.getAllByText("Erreur")).toBeTruthy();
+          });
+        });
+      });
+    });
+
+    // Test for Bills.js
+    describe("Given I am connected as Employee and I am on Bill page, there are bills", () => {
+      describe("When clicking on an eye icon", () => {
+        test("Then, modal should open and have a title and a file url", () => {
+          Object.defineProperty(window, "localStorage", { value: localStorageMock });
+          window.localStorage.setItem(
+            "user",
+            JSON.stringify({
+              type: "Employee",
+            })
+          );
+          document.body.innerHTML = BillsUI({ data: bills });
+          const onNavigate = (pathname) => {
+            document.body.innerHTML = ROUTES({ pathname });
+          };
+          const store = null;
+          const bill = new Bills({
+            document,
+            onNavigate,
+            store,
+            localStorage: window.localStorage,
+          });
+
+          const modale = document.getElementById("modaleFile");
+          $.fn.modal = jest.fn(() => modale.classList.add("show"));
+
+          const eye = screen.getAllByTestId("icon-eye")[0];
+          const handleClickIconEye = jest.fn(bill.handleClickIconEye(eye));
+
+          eye.addEventListener("click", handleClickIconEye);
+          userEvent.click(eye);
+          expect(handleClickIconEye).toHaveBeenCalled();
+
+          expect(modale.classList).toContain("show");
+
+          expect(screen.getByText("Justificatif")).toBeTruthy();
+          expect(bills[0].fileUrl).toBeTruthy();
+        });
+      });
+    });
+    describe("Given I am connected as Employee and I am on Bill page, there are a newBill button", () => {
+      describe("When clicking on newBill button", () => {
+        test("Then, the NewBill page should be rendered", async () => {
+          // Set up local storage
+          Object.defineProperty(window, "localStorage", { value: localStorageMock });
+          window.localStorage.setItem(
+            "user",
+            JSON.stringify({ type: "Employee" })
+          );
+
+          // Render the Bills page
+          document.body.innerHTML = BillsUI({ data: bills });
+
+          // Initialize the Bills class
+          const onNavigate = (pathname) => {
+            document.body.innerHTML = ROUTES({ pathname });
+          };
+          const store = null;
+          const bill = new Bills({
+            document,
+            onNavigate,
+            store,
+            localStorage: window.localStorage,
+          });
+
+          // Spy on the handleClickNewBill method
+          const handleClickNewBill = jest.spyOn(bill, "handleClickNewBill");
+
+          // Click the "Nouvelle facture" button
+          fireEvent.click(screen.getByTestId("btn-new-bill"));
+
+          // Assert that the handleClickNewBill method was called
+          expect(handleClickNewBill).toHaveBeenCalled();
+
+          // Assert that the NewBill page is rendered
+          await waitFor(() => {
+            expect(screen.getByText("Envoyer une note de frais")).toBeTruthy();
+          });
+
+          expect(screen.getByText("Envoyer une note de frais")).toBeTruthy();
+
+        });
+      });
+
+      // Test d'intégration GET
+      describe("Given I am a user connected as Employee", () => {
+        describe("When I navigate to Bill", () => {
+          beforeEach(() => {
+            jest.spyOn(mockStore, "bills");
+            Object.defineProperty(window, "localStorage", { value: localStorageMock });
+            window.localStorage.setItem(
+              "user",
+              JSON.stringify({
+                type: "Employee",
+                email: "a@a",
+              })
+            );
+            const root = document.createElement("div");
+            root.setAttribute("id", "root");
+            document.body.appendChild(root);
+            router();
+          });
+
+          test("Then, fetches bills from mock API GET", async () => {
+            // Mock the store
+            const mockedStore = {
+              bills: jest.fn().mockResolvedValueOnce({ data: { bills } }),
+            };
+
+            // Initialize the Bills class
+            const bill = new Bills({
+              document,
+              onNavigate: jest.fn(),
+              store: mockedStore,
+              localStorage,
+            });
+
+            // Navigate to the Bills page
+            window.onNavigate(ROUTES_PATH.Bills);
+
+            // Wait for the bills to be fetched and displayed
+            await waitFor(() => screen.getByText("Mes notes de frais"));
+
+            // Assertions
+            expect(screen.getAllByText("Billed")).toBeTruthy();
+            expect(screen.getByText("Mes notes de frais")).toBeTruthy();
+            expect(screen.getByTestId("tbody")).toBeTruthy();
+            expect(screen.getAllByText("test1")).toBeTruthy();
+          });
+          test("Then, fetches bills from an API and fails with 404 message error", async () => {
+            mockStore.bills.mockImplementationOnce(() => {
+              return {
+                list: () => {
+                  return Promise.reject(new Error("Erreur 404"));
+                },
+              };
+            });
+            window.onNavigate(ROUTES_PATH.Bills);
+            await new Promise(process.nextTick);
+            const message = await screen.getByText(/Erreur 404/);
+            expect(message).toBeTruthy();
+          });
+
+          test("Then, fetches messages from an API and fails with 500 message error", async () => {
+            mockStore.bills.mockImplementationOnce(() => {
+              return {
+                list: () => {
+                  return Promise.reject(new Error("Erreur 500"));
+                },
+              };
+            });
+            window.onNavigate(ROUTES_PATH.Bills);
+            await new Promise(process.nextTick);
+            const message = await screen.getByText(/Erreur 500/);
+            expect(message).toBeTruthy();
+          });
+        });
+      });
+
+    });
+
+  });
+});
+*/
+
+dashboard.js
+//Billed-app-FR-Front\src\containers\Dashboard.js
+/*
+
+import { formatDate } from '../app/format.js'
+import DashboardFormUI from '../views/DashboardFormUI.js'
+import BigBilledIcon from '../assets/svg/big_billed.js'
+import { ROUTES_PATH } from '../constants/routes.js'
+import USERS_TEST from '../constants/usersTest.js'
+import Logout from "./Logout.js"
+
+// Ajout des types de documents supportés
+
+const SUPPORTED_DOCUMENTS = ['jpeg', 'jpg', 'png', 'gif']
+
+export function filteredBills(data, status) {
+  return (data && data.length) ?
+    data.filter(bill => {
+      let selectCondition
+
+      // in jest environment
+      if (typeof jest !== 'undefined') {
+        selectCondition = (bill.status === status)
+      }
+      /* istanbul ignore next */
+/*
+else {
+  // in prod environment
+  const userEmail = JSON.parse(localStorage.getItem("user")).email
+  selectCondition =
+    (bill.status === status) &&
+    ![...USERS_TEST, userEmail].includes(bill.email)
+}
+
+return selectCondition
+}) : []
+}
+
+export const card = (bill) => {
+const firstAndLastNames = bill.email.split('@')[0]
+const firstName = firstAndLastNames.includes('.') ?
+firstAndLastNames.split('.')[0] : ''
+const lastName = firstAndLastNames.includes('.') ?
+firstAndLastNames.split('.')[1] : firstAndLastNames
+
+const getFileType = (fileName) => {
+if (!fileName) return 'Format inconnu'
+const extension = fileName.split('.').pop().toLowerCase()
+return SUPPORTED_DOCUMENTS.includes(extension) ? 'IMAGE' : 'Format inconnu'
+}
+
+const fileInfo = bill.fileName && bill.fileName !== 'null'
+? `Fichier : ${bill.fileName} (${getFileType(bill.fileName)})`
+: 'Format inconnu';
+
+const typeInfo = bill.type ? `Type : ${bill.type}` : '';
+
+return (`
+<div class='bill-card' id='open-bill${bill.id}' data-testid='open-bill${bill.id}'>
+<div class='bill-card-name-container'>
+  <div class='bill-card-name'> ${firstName} ${lastName} </div>
+  <span class='bill-card-grey'> ... </span>
+</div>
+<div class='name-price-container'>
+  <span> ${bill.name} </span>
+  <span> ${bill.amount} € </span>
+</div>
+<div class='date-type-container'>
+  <span> ${formatDate(bill.date)} </span>
+  <span> ${fileInfo} ${typeInfo ? `| ${typeInfo}` : ''} </span>
+</div>
+</div>
+`)
+}
+
+export const cards = (bills) => {
+return bills && bills.length ? bills.map(bill => card(bill)).join("") : ""
+}
+
+export const getStatus = (index) => {
+switch (index) {
+case 1:
+return "pending"
+case 2:
+return "accepted"
+case 3:
+return "refused"
+}
+}
+
+export default class {
+constructor({ document, onNavigate, store, bills, localStorage }) {
+this.document = document
+this.onNavigate = onNavigate
+this.store = store
+this.bills = bills
+$('#arrow-icon1').click((e) => this.handleShowTickets(e, bills, 1))
+$('#arrow-icon2').click((e) => this.handleShowTickets(e, bills, 2))
+$('#arrow-icon3').click((e) => this.handleShowTickets(e, bills, 3))
+new Logout({ localStorage, onNavigate })
+}
+
+handleShowTickets = (e, bills, index) => {
+if (this.counter === undefined || this.index !== index) this.counter = 0
+if (this.index === undefined || this.index !== index) this.index = index
+if (this.counter % 2 === 0) {
+$(`#arrow-icon${this.index}`).css({ transform: 'rotate(0deg)' })
+$(`#status-bills-container${this.index}`)
+  .html(cards(filteredBills(bills, getStatus(this.index))))
+this.counter++
+} else {
+$(`#arrow-icon${this.index}`).css({ transform: 'rotate(90deg)' })
+$(`#status-bills-container${this.index}`)
+  .html("")
+this.counter++
+}
+
+bills.forEach(bill => {
+$(`#open-bill${bill.id}`).click((e) => this.handleEditTicket(e, bill, bills))
+})
+
+return bills
+}
+
+handleEditTicket = (e, bill, bills) => {
+if (this.counter === undefined || this.id !== bill.id) this.counter = 0
+if (this.id === undefined || this.id !== bill.id) this.id = bill.id
+if (this.counter % 2 === 0) {
+bills.forEach(b => {
+  $(`#open-bill${b.id}`).css({ background: '#0D5AE5' })
+})
+$(`#open-bill${bill.id}`).css({ background: '#2A2B35' })
+$('.dashboard-right-container div').html(DashboardFormUI(bill))
+$('.vertical-navbar').css({ height: '150vh' })
+this.counter++
+} else {
+$(`#open-bill${bill.id}`).css({ background: '#0D5AE5' })
+$('.dashboard-right-container div').html(`
+  <div id="big-billed-icon" data-testid="big-billed-icon"> ${BigBilledIcon} </div>
+`)
+$('.vertical-navbar').css({ height: '120vh' })
+this.counter++
+}
+$('#icon-eye-d').click(this.handleClickIconEye)
+$('#btn-accept-bill').click((e) => this.handleAcceptSubmit(e, bill))
+$('#btn-refuse-bill').click((e) => this.handleRefuseSubmit(e, bill))
+}
+
+handleClickIconEye = () => {
+const billUrl = $('#icon-eye-d').attr("data-bill-url")
+const imgWidth = Math.floor($('#modaleFileAdmin1').width() * 0.8)
+$('#modaleFileAdmin1').find(".modal-body").html(`<div style='text-align: center;'><img width=${imgWidth} src=${billUrl} alt="Bill"/></div>`)
+if (typeof $('#modaleFileAdmin1').modal === 'function') $('#modaleFileAdmin1').modal('show')
+}
+
+handleAcceptSubmit = (e, bill) => {
+const newBill = {
+...bill,
+status: 'accepted',
+commentAdmin: $('#commentary2').val()
+}
+this.updateBill(newBill)
+this.onNavigate(ROUTES_PATH['Dashboard'])
+}
+
+handleRefuseSubmit = (e, bill) => {
+const newBill = {
+...bill,
+status: 'refused',
+commentAdmin: $('#commentary2').val()
+}
+this.updateBill(newBill)
+this.onNavigate(ROUTES_PATH['Dashboard'])
+}
+*/
+/*
+  getBillsAllUsers = () => {
+    if (this.store) {
+      return this.store
+        .bills()
+        .list()
+        .then(snapshot => {
+          const bills = snapshot
+            .map(doc => {
+              let fileDisplay;
+              let fileType;
+ 
+              if (doc.fileName) {
+                fileDisplay = doc.fileName;
+                fileType = doc.fileName.split('.').pop().toLowerCase();
+              } else if (doc.name) {
+                fileType = (doc.type && SUPPORTED_DOCUMENTS.includes(doc.type.toLowerCase()))
+                  ? doc.type.toLowerCase()
+                  : 'pdf';
+                fileDisplay = `${doc.name}.${fileType}`;
+              } else {
+                fileDisplay = 'document-sans-nom.pdf';
+                fileType = 'pdf';
+              }
+ 
+              if (!SUPPORTED_DOCUMENTS.includes(fileType)) {
+                fileType = 'pdf';
+              }
+ 
+              return {
+                id: doc.id,
+                ...doc,
+                date: doc.date,
+                status: doc.status,
+                fileName: fileDisplay,
+                type: doc.type || fileType.toUpperCase(),
+                fileUrl: doc.fileUrl || fileDisplay
+              }
+            });
+          return bills;
+        })
+        .catch(error => {
+          throw error;
+        });
+    }
+  }
+*/
+/*
+ getBillsAllUsers = () => {
+   if (this.store) {
+     return this.store
+       .bills()
+       .list()
+       .then(snapshot => {
+         const bills = snapshot
+           .map(doc => {
+             let fileDisplay;
+             let fileType;
+
+             if (doc.fileName) {
+               fileDisplay = doc.fileName;
+               fileType = doc.fileName.split('.').pop().toLowerCase();
+             } else if (doc.name) {
+               // Vérifier si le type est supporté
+               fileType = (doc.type && SUPPORTED_DOCUMENTS.includes(doc.type.toLowerCase()))
+                 ? doc.type.toLowerCase()
+                 : 'jpg';
+               fileDisplay = `${doc.name}.${fileType}`;
+             } else {
+               fileDisplay = 'fichier introuvable';
+               fileType = 'jpg';
+             }
+
+             // Vérification pour les undefined
+             if (!fileDisplay || fileDisplay === 'undefined') {
+               fileDisplay = 'fichier introuvable';
+             }
+             if (!fileType || fileType === 'undefined') {
+               fileType = 'jpg';
+             }
+
+             // Vérification du type supporté
+             if (!SUPPORTED_DOCUMENTS.includes(fileType)) {
+               fileType = 'jpg';
+             }
+
+             return {
+               id: doc.id,
+               ...doc,
+               date: doc.date,
+               status: doc.status,
+               fileName: fileDisplay,
+               type: 'IMAGE',
+               fileUrl: doc.fileUrl || fileDisplay
+             }
+           });
+         return bills;
+       })
+       .catch(error => {
+         throw error;
+       });
+   }
+ }
+ updateBill = (bill) => {
+   if (this.store) {
+     return this.store
+       .bills()
+       .update({ data: JSON.stringify(bill), selector: bill.id })
+       .then(bill => bill)
+       .catch(console.log)
+   }
+ }
+}
+*/
