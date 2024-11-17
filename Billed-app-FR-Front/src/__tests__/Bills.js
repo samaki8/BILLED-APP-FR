@@ -253,52 +253,80 @@ describe("Bills", () => {
             expect(modalBody.innerHTML).toContain("corrompu");
         });
     });
-    /*
-        describe("Modal Tests", () => {
-            test("should display image in modal", () => {
-                document.body.innerHTML = BillsUI({ data: [] }) +
-                    '<div id="modaleFile"><div class="modal-body"></div></div>';
-    
-                const bills = new Bills({ document, onNavigate: jest.fn(), store: null, localStorage });
-                const icon = document.createElement("div");
-                icon.setAttribute("data-bill-url", "http://example.com/image.jpg");
-    
-                // Mock jQuery
-                global.$ = jest.fn(() => ({
-                    modal: jest.fn(),
-                    find: jest.fn(() => ({
-                        html: jest.fn()
-                    }))
-                }));
-    
-                bills.handleClickIconEye(icon);
-    
-                expect($).toHaveBeenCalled();
-                expect(document.querySelector(".modal-body")).toBeDefined();
-            });
-    
-            test("should handle corrupted image", () => {
-                document.body.innerHTML = BillsUI({ data: [] }) +
-                    '<div id="modaleFile"><div class="modal-body"></div></div>';
-    
-                const bills = new Bills({ document, onNavigate: jest.fn(), store: null, localStorage });
-                const icon = document.createElement("div");
-                icon.setAttribute("data-bill-url", "invalid-url");
-    
-                // Mock jQuery
-                global.$ = jest.fn(() => ({
-                    modal: jest.fn(),
-                    find: jest.fn(() => ({
-                        html: jest.fn()
-                    }))
-                }));
-    
-                bills.handleClickIconEye(icon);
-    
-                const modalBody = document.querySelector(".modal-body");
-                expect(modalBody).toBeDefined();
-                expect(modalBody.textContent).toContain("corrompu");
-            });
+
+
+
+    // Intégration///////////////////////////////////////////////////////////////////////////////////////
+    describe("When an error occurs on API", () => {
+        beforeEach(() => {
+            // Espionne la fonction mockStore.bills
+            jest.spyOn(mockStore, "bills");
+
+            // Mock de window.localStorage
+            Object.defineProperty(window, "localStorage", { value: localStorageMock });
+
+            // Stocke un utilisateur fictif dans localStorage
+            window.localStorage.setItem("user", JSON.stringify({
+                type: "Employee",
+                email: "a@a"
+            }));
+
+            // Crée un élément div racine et l'ajoute au corps du document
+            const root = document.createElement("div");
+            root.setAttribute("id", "root");
+            document.body.appendChild(root);
+
+            // Initialise le routage (Assurez-vous que la fonction router() est définie)
+            router();
         });
-        */
-});
+
+        // Teste si l'erreur 404 s'affiche correctement
+        test("Then fetches bills from an API and fails with 404 message error", async () => {
+            // Mock de la fonction list de mockStore.bills pour retourner une promesse rejetée avec une erreur 404
+            mockStore.bills.mockImplementationOnce(() => {
+                return {
+                    list: () => {
+                        return Promise.reject(new Error("Erreur 404"));
+                    }
+                };
+            });
+
+            // Appelle BillsUI avec l'erreur 404
+            const html = BillsUI({ error: "Erreur 404" });
+
+            // Remplace le contenu du corps du document par le HTML généré
+            document.body.innerHTML = html;
+
+            // Récupère l'élément texte contenant l'erreur 404
+            const message = await screen.getByText(/Erreur 404/);
+
+            // Vérifie si l'élément texte est présent dans le DOM
+            expect(message).toBeTruthy();
+        });
+
+        // Teste si l'erreur 500 s'affiche correctement
+        test("Then fetches messages from an API and fails with 500 message error", async () => {
+            // Mock de la fonction list de mockStore.bills pour retourner une promesse rejetée avec une erreur 500
+            mockStore.bills.mockImplementationOnce(() => {
+                return {
+                    list: () => {
+                        return Promise.reject(new Error("Erreur 500"));
+                    }
+                };
+            });
+
+            // Appelle BillsUI avec l'erreur 500
+            const html = BillsUI({ error: "Erreur 500" });
+
+            // Remplace le contenu du corps du document par le HTML généré
+            document.body.innerHTML = html;
+
+            // Récupère l'élément texte contenant l'erreur 500
+            const message = await screen.getByText(/Erreur 500/);
+
+            // Vérifie si l'élément texte est présent dans le DOM
+            expect(message).toBeTruthy();
+        });
+    });
+
+})
