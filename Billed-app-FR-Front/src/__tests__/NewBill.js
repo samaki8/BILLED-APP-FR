@@ -16,8 +16,16 @@ import { bills } from "../fixtures/bills.js";
 import router from "../app/Router.js";
 import BillsUI from "../views/BillsUI.js";
 
-jest.mock("../app/store", () => mockStore);
 
+jest.mock("../app/store", () => mockStore);
+/*
+jest.mock("../app/store", () => ({
+  bills: jest.fn(() => ({
+    create: jest.fn().mockResolvedValue({}),
+    update: jest.fn().mockResolvedValue({}),
+  })),
+}));
+*/
 describe("Given I am connected as an employee", () => {
   beforeAll(() => {
     Object.defineProperty(window, "localStorage", { value: localStorageMock });
@@ -197,5 +205,194 @@ describe("Given I am connected as an employee", () => {
       });
     });
   });
+
+  //// Intégration POST new bill ////////////////////////////////
+  describe("Integration test - POST new bill", () => {
+    test("Should create a new bill and redirect to Bills page", async () => {
+      // Définir le mock du store avant le test
+      const mockedBills = {
+        create: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({})
+      };
+
+      jest.spyOn(mockStore, "bills").mockImplementation(() => mockedBills);
+
+      document.body.innerHTML = NewBillUI();
+
+      const onNavigate = (pathname) => {
+        document.body.innerHTML = ROUTES({ pathname });
+      };
+
+      const newBill = new NewBill({
+        document,
+        onNavigate,
+        store: mockStore, // Utiliser mockStore au lieu d'un nouveau store
+        localStorage: window.localStorage
+      });
+
+      // Remplissage du formulaire
+      const inputData = bills[0];
+      const newBillForm = screen.getByTestId("form-new-bill");
+      const imageInput = screen.getByTestId("file");
+      const file = new File(["img"], inputData.fileName, { type: "image/jpg" });
+
+      // Simulation des entrées utilisateur
+      fireEvent.change(screen.getByTestId("expense-type"), {
+        target: { value: inputData.type }
+      });
+      fireEvent.change(screen.getByTestId("expense-name"), {
+        target: { value: inputData.name }
+      });
+      fireEvent.change(screen.getByTestId("datepicker"), {
+        target: { value: inputData.date }
+      });
+      fireEvent.change(screen.getByTestId("amount"), {
+        target: { value: inputData.amount.toString() }
+      });
+      fireEvent.change(screen.getByTestId("vat"), {
+        target: { value: inputData.vat.toString() }
+      });
+      fireEvent.change(screen.getByTestId("pct"), {
+        target: { value: inputData.pct.toString() }
+      });
+      fireEvent.change(screen.getByTestId("commentary"), {
+        target: { value: inputData.commentary }
+      });
+
+      await userEvent.upload(imageInput, file);
+
+      // Soumission du formulaire
+      const handleSubmit = jest.fn((e) => newBill.handleSubmit(e));
+      newBillForm.addEventListener("submit", handleSubmit);
+      fireEvent.submit(newBillForm);
+
+      // Vérifications
+      expect(handleSubmit).toHaveBeenCalled();
+      expect(mockedBills.create).toHaveBeenCalled();
+      expect(mockedBills.update).toHaveBeenCalled();
+
+      // Vérification de la redirection
+      await waitFor(() => {
+        expect(screen.getByText("Mes notes de frais")).toBeTruthy();
+      });
+    });
+  });
+  /*
+    describe("Integration test - POST new bill", () => {
+      /*
+          jest.mock("../app/store", () => ({
+            bills: jest.fn(() => ({
+              create: jest.fn().mockResolvedValue({}),
+              update: jest.fn().mockResolvedValue({}),
+            })),
+          }));*/
+  /*
+jest.mock("../app/store", () => mockStore);
+beforeAll(() => {
+Object.defineProperty(window, "localStorage", {
+  value: localStorageMock,
 });
+
+window.localStorage.setItem(
+  "user",
+  JSON.stringify({
+    type: "Employee",
+    email: "a@a",
+  })
+);
+});
+
+beforeEach(() => {
+const root = document.createElement("div");
+root.setAttribute("id", "root");
+document.body.append(root);
+router();
+document.body.innerHTML = NewBillUI();
+window.onNavigate(ROUTES_PATH.NewBill);
+});
+
+afterEach(() => {
+jest.resetAllMocks();
+document.body.innerHTML = "";
+});
+
+
+test("Should create a new bill and redirect to Bills page", async () => {
+// Mock du store
+const store = {
+  bills: () => ({
+    create: jest.fn().mockResolvedValue({}),
+    update: jest.fn().mockResolvedValue({})
+  })
+}
+
+// Initialisation du composant avec le store mocké
+
+
+document.body.innerHTML = NewBillUI();
+// Configuration de l'environnement
+const onNavigate = (pathname) => {
+  document.body.innerHTML = ROUTES({ pathname });
+};
+
+const newBill = new NewBill({
+  document,
+  onNavigate,
+  store: store,
+  localStorage: window.localStorage
+});
+
+// Remplissage du formulaire
+const inputData = bills[0];
+const newBillForm = screen.getByTestId("form-new-bill");
+const imageInput = screen.getByTestId("file");
+const file = new File(["img"], inputData.fileName, { type: "image/jpg" });
+
+// Simulation des entrées utilisateur
+fireEvent.change(screen.getByTestId("expense-type"), {
+  target: { value: inputData.type }
+});
+fireEvent.change(screen.getByTestId("expense-name"), {
+  target: { value: inputData.name }
+});
+fireEvent.change(screen.getByTestId("datepicker"), {
+  target: { value: inputData.date }
+});
+fireEvent.change(screen.getByTestId("amount"), {
+  target: { value: inputData.amount.toString() }
+});
+fireEvent.change(screen.getByTestId("vat"), {
+  target: { value: inputData.vat.toString() }
+});
+fireEvent.change(screen.getByTestId("pct"), {
+  target: { value: inputData.pct.toString() }
+});
+fireEvent.change(screen.getByTestId("commentary"), {
+  target: { value: inputData.commentary }
+});
+
+await userEvent.upload(imageInput, file);
+
+// Soumission du formulaire
+const handleSubmit = jest.fn((e) => newBill.handleSubmit(e));
+newBillForm.addEventListener("submit", handleSubmit);
+fireEvent.submit(newBillForm);
+
+// Vérifications
+expect(handleSubmit).toHaveBeenCalled();
+expect(mockStore.bills().create).toHaveBeenCalled();
+expect(mockStore.bills().update).toHaveBeenCalled();
+
+// Vérification de la redirection
+await waitFor(() => {
+  expect(screen.getByText("Mes notes de frais")).toBeTruthy();
+});
+});
+
+});
+*/
+});
+
+
+
 
