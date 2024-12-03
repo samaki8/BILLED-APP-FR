@@ -55,7 +55,7 @@ describe("Bills", () => {
             window.onNavigate(ROUTES_PATH.Bills)
             await waitFor(() => screen.getByTestId('icon-window'))
             const windowIcon = screen.getByTestId('icon-window')
-            //to-do write expect expression
+            expect(windowIcon).toHaveClass('active-icon');
 
         })
 
