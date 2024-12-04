@@ -1,8 +1,9 @@
 /**
  * @jest-environment jsdom
  */
-
+import { render } from "@testing-library/dom";
 import { screen, waitFor } from "@testing-library/dom";
+import '@testing-library/jest-dom';
 import userEvent from "@testing-library/user-event";
 import Bills from "../containers/Bills.js";
 import BillsUI from "../views/BillsUI.js";
@@ -12,6 +13,7 @@ import mockStore from "../__mocks__/store";
 import router from "../app/Router.js";
 import { bills } from "../fixtures/bills.js";
 
+//Mock du store pour simuler les appels API
 jest.mock("../app/store", () => ({
     bills: () => ({
         list: () => Promise.resolve([{
@@ -42,6 +44,7 @@ describe("Bills", () => {
         router();
     });
     describe("When I am on Bills Page", () => {
+        //Vérifie que l'icône des factures est bien mise en surbrillance
         test("Then bill icon in vertical layout should be highlighted", async () => {
 
             Object.defineProperty(window, 'localStorage', { value: localStorageMock })
@@ -59,7 +62,7 @@ describe("Bills", () => {
 
         })
 
-
+        //Vérifie que les factures sont bien triées par ordre chronologique décroissant      
         test("Then bills should be ordered from earliest to latest", () => {
             document.body.innerHTML = BillsUI({ data: bills })
             const dates = screen.getAllByText(/^(19|20)\d\d[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$/i).map(a => a.innerHTML)
@@ -83,6 +86,7 @@ describe("Bills", () => {
             expect(billsInstance.document).toBe(document);
         });
     });
+    //Tests des fonctionnalités de base du composant
     describe("Basic Component Tests", () => {
         test("Bills instance should be properly initialized", () => {
             const onNavigate = jest.fn();
@@ -92,7 +96,7 @@ describe("Bills", () => {
             expect(bills.store).toBeDefined();
             expect(bills.document).toBe(document);
         });
-
+        //Vérifie la navigation vers la page NewBill lors du clic sur le bouton
         test("New Bill button should navigate to NewBill page", () => {
             document.body.innerHTML = BillsUI({ data: [] });
             const onNavigate = jest.fn();
@@ -104,7 +108,7 @@ describe("Bills", () => {
             expect(onNavigate).toHaveBeenCalledWith(ROUTES_PATH["NewBill"]);
         });
     });
-
+    //Vérifie le formatage et la structure des factures retournées
     describe("getBills Method", () => {
         test("should return formatted bills", async () => {
             const bills = new Bills({
@@ -170,13 +174,6 @@ describe("Bills", () => {
                 localStorage: window.localStorage
             });
 
-            // Mock complet de jQuery
-            $.fn.modal = jest.fn();
-            $.fn.width = jest.fn().mockReturnValue(500);
-            $.fn.find = jest.fn().mockReturnValue({
-                html: jest.fn()
-            });
-
             // Création et setup de l'icône
             const icon = document.createElement("div");
             icon.setAttribute("data-testid", "icon-eye");
@@ -196,7 +193,9 @@ describe("Bills", () => {
             mockImage.onload && mockImage.onload();
 
             // Vérifications
-            expect($.fn.modal).toHaveBeenCalled();
+            const modal = document.querySelector("#modaleFile");
+            expect(modal).toBeDefined();
+            expect(modal.classList.contains("show")).toBe(true);
             expect(document.querySelector(".modal-body")).toBeDefined();
         });
 
@@ -214,18 +213,6 @@ describe("Bills", () => {
                 onNavigate: jest.fn(),
                 store: null,
                 localStorage: window.localStorage
-            });
-
-            // Mock complet de jQuery
-            $.fn.modal = jest.fn();
-            $.fn.width = jest.fn().mockReturnValue(500);
-            $.fn.find = jest.fn().mockReturnValue({
-                html: jest.fn((content) => {
-                    const modalBody = document.querySelector(".modal-body");
-                    if (modalBody && content) {
-                        modalBody.innerHTML = content;
-                    }
-                })
             });
 
             // Création et setup de l'icône
@@ -247,7 +234,9 @@ describe("Bills", () => {
             mockImage.onerror && mockImage.onerror();
 
             // Vérifications
-            expect($.fn.modal).toHaveBeenCalled();
+            const modal = document.querySelector("#modaleFile");
+            expect(modal).toBeDefined();
+            expect(modal.classList.contains("show")).toBe(true);
             const modalBody = document.querySelector(".modal-body");
             expect(modalBody).toBeDefined();
             expect(modalBody.innerHTML).toContain("corrompu");

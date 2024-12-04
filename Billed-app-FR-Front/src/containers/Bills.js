@@ -21,18 +21,25 @@ export default class {
     this.onNavigate(ROUTES_PATH["NewBill"]);
   };
 
+
   handleClickIconEye = (icon) => {
-    const billUrl = icon.getAttribute("data-bill-url")
-    const imgWidth = Math.floor($('#modaleFile').width() * 0.5)
-    const img = new Image()
-    img.src = billUrl
+    const billUrl = icon.getAttribute("data-bill-url");
+    const modaleFile = document.getElementById('modaleFile');
+    const imgWidth = Math.floor(modaleFile.offsetWidth * 0.5);
+
+    const img = new Image();
+    img.src = billUrl;
+
     img.onload = () => {
-      $('#modaleFile').find(".modal-body").html(`<div style='text-align: center;' class="bill-proof-container"><img width=${imgWidth} src=${billUrl} alt="Bill" /></div>`)
-      $('#modaleFile').modal('show')
+      const modalBody = modaleFile.querySelector(".modal-body");
+      modalBody.innerHTML = `<div style='text-align: center;' class="bill-proof-container"><img width=${imgWidth} src=${billUrl} alt="Bill" /></div>`;
+      modaleFile.classList.add('show');
     }
+
     img.onerror = () => {
-      $('#modaleFile').find(".modal-body").html(`<div style='text-align: center;' class="bill-proof-container">Le fichier est corrompu</div>`)
-      $('#modaleFile').modal('show')
+      const modalBody = modaleFile.querySelector(".modal-body");
+      modalBody.innerHTML = `<div style='text-align: center;' class="bill-proof-container">Le fichier est corrompu</div>`;
+      modaleFile.classList.add('show');
     }
   }
 
