@@ -1,3 +1,4 @@
+//Billed-app-FR-Front\src\views\Actions.js
 import eyeBlueIcon from "../assets/svg/eye_blue.js"
 import downloadBlueIcon from "../assets/svg/download_blue.js"
 

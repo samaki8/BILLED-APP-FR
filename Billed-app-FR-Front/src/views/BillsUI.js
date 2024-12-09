@@ -1,3 +1,4 @@
+//Billed-app-FR-Front\src\views\BillsUI.js
 import VerticalLayout from './VerticalLayout.js'
 import ErrorPage from "./ErrorPage.js"
 import LoadingPage from "./LoadingPage.js"

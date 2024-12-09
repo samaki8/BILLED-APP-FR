@@ -52,6 +52,7 @@ export default class NewBill {
       fileInput.classList.add("is-invalid")
       fileInput.setCustomValidity("Le format doit être JPG, JPEG ou PNG")
       fileInput.value = ""
+      alert("Seuls les fichiers au format JPEG/JPG/PNG sont acceptés")
     }
   }
   handleSubmit = e => {

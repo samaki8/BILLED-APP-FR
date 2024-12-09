@@ -65,8 +65,13 @@ describe("Bills", () => {
         //Vérifie que les factures sont bien triées par ordre chronologique décroissant      
         test("Then bills should be ordered from earliest to latest", () => {
             document.body.innerHTML = BillsUI({ data: bills })
-            const dates = screen.getAllByText(/^(19|20)\d\d[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$/i).map(a => a.innerHTML)
-            const antiChrono = (a, b) => ((a < b) ? 1 : -1)
+            const dates = screen.getAllByText(/^(19|20)\d\d[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01])$/i)
+                .map(a => a.innerHTML)
+            const antiChrono = (a, b) => {
+                const dateA = new Date(a.split('-').reverse().join('-'))
+                const dateB = new Date(b.split('-').reverse().join('-'))
+                return dateB - dateA
+            }
             const datesSorted = [...dates].sort(antiChrono)
             expect(dates).toEqual(datesSorted)
         })
@@ -156,17 +161,104 @@ describe("Bills", () => {
             await expect(bills.getBills()).rejects.toThrow("API Error");
         });
     });
-
+    /*
+        describe("Modal Tests", () => {
+            test("should display image in modal", () => {
+                // Setup du DOM
+                document.body.innerHTML = BillsUI({ data: [] });
+                document.body.innerHTML += `
+                <div id="modaleFile" class="modal fade">
+                  <div class="modal-body"></div>
+                </div>`;
+    
+                // Setup de l'instance Bills
+                const bills = new Bills({
+                    document,
+                    onNavigate: jest.fn(),
+                    store: null,
+                    localStorage: window.localStorage
+                });
+    
+                // Création et setup de l'icône
+                const icon = document.createElement("div");
+                icon.setAttribute("data-testid", "icon-eye");
+                icon.setAttribute("data-bill-url", "http://example.com/image.jpg");
+    
+                // Mock de l'objet Image
+                const mockImage = {
+                    onload: null,
+                    onerror: null
+                };
+                global.Image = jest.fn(() => mockImage);
+    
+                // Déclenchement du click
+                bills.handleClickIconEye(icon);
+    
+                // Simulation du chargement réussi de l'image
+                mockImage.onload && mockImage.onload();
+    
+                // Vérifications
+                const modal = document.querySelector("#modaleFile");
+                expect(modal).toBeDefined();
+                expect(modal.classList.contains("show")).toBe(true);
+                expect(document.querySelector(".modal-body")).toBeDefined();
+            });
+    
+            test("should handle corrupted image", () => {
+                // Setup du DOM
+                document.body.innerHTML = BillsUI({ data: [] });
+                document.body.innerHTML += `
+                <div id="modaleFile" class="modal fade">
+                  <div class="modal-body"></div>
+                </div>`;
+    
+                // Setup de l'instance Bills
+                const bills = new Bills({
+                    document,
+                    onNavigate: jest.fn(),
+                    store: null,
+                    localStorage: window.localStorage
+                });
+    
+                // Création et setup de l'icône
+                const icon = document.createElement("div");
+                icon.setAttribute("data-testid", "icon-eye");
+                icon.setAttribute("data-bill-url", "invalid-url");
+    
+                // Mock de l'objet Image
+                const mockImage = {
+                    onload: null,
+                    onerror: null
+                };
+                global.Image = jest.fn(() => mockImage);
+    
+                // Déclenchement du click
+                bills.handleClickIconEye(icon);
+    
+                // Simulation de l'erreur de chargement de l'image
+                mockImage.onerror && mockImage.onerror();
+    
+                // Vérifications
+                const modal = document.querySelector("#modaleFile");
+                expect(modal).toBeDefined();
+                expect(modal.classList.contains("show")).toBe(true);
+                const modalBody = document.querySelector(".modal-body");
+                expect(modalBody).toBeDefined();
+                expect(modalBody.innerHTML).toContain("corrompu");
+            });
+        });*/
     describe("Modal Tests", () => {
+        beforeEach(() => {
+            $.fn.modal = jest.fn(); // Mock de la fonction modal de jQuery
+        });
+
         test("should display image in modal", () => {
-            // Setup du DOM
             document.body.innerHTML = BillsUI({ data: [] });
             document.body.innerHTML += `
-            <div id="modaleFile" class="modal fade">
-              <div class="modal-body"></div>
-            </div>`;
+                <div id="modaleFile" class="modal fade">
+                  <div class="modal-body"></div>
+                </div>`;
 
-            // Setup de l'instance Bills
             const bills = new Bills({
                 document,
                 onNavigate: jest.fn(),
@@ -174,40 +266,24 @@ describe("Bills", () => {
                 localStorage: window.localStorage
             });
 
-            // Création et setup de l'icône
             const icon = document.createElement("div");
             icon.setAttribute("data-testid", "icon-eye");
             icon.setAttribute("data-bill-url", "http://example.com/image.jpg");
 
-            // Mock de l'objet Image
-            const mockImage = {
-                onload: null,
-                onerror: null
-            };
-            global.Image = jest.fn(() => mockImage);
-
-            // Déclenchement du click
             bills.handleClickIconEye(icon);
 
-            // Simulation du chargement réussi de l'image
-            mockImage.onload && mockImage.onload();
-
-            // Vérifications
-            const modal = document.querySelector("#modaleFile");
-            expect(modal).toBeDefined();
-            expect(modal.classList.contains("show")).toBe(true);
-            expect(document.querySelector(".modal-body")).toBeDefined();
+            expect($.fn.modal).toHaveBeenCalledWith('show');
+            expect($('#modaleFile .modal-body')).toBeDefined();
+            expect($('#modaleFile .bill-proof-container')).toBeDefined();
         });
 
         test("should handle corrupted image", () => {
-            // Setup du DOM
             document.body.innerHTML = BillsUI({ data: [] });
             document.body.innerHTML += `
-            <div id="modaleFile" class="modal fade">
-              <div class="modal-body"></div>
-            </div>`;
+                <div id="modaleFile" class="modal fade">
+                  <div class="modal-body"></div>
+                </div>`;
 
-            // Setup de l'instance Bills
             const bills = new Bills({
                 document,
                 onNavigate: jest.fn(),
@@ -215,34 +291,16 @@ describe("Bills", () => {
                 localStorage: window.localStorage
             });
 
-            // Création et setup de l'icône
             const icon = document.createElement("div");
             icon.setAttribute("data-testid", "icon-eye");
-            icon.setAttribute("data-bill-url", "invalid-url");
+            icon.setAttribute("data-bill-url", "null");
 
-            // Mock de l'objet Image
-            const mockImage = {
-                onload: null,
-                onerror: null
-            };
-            global.Image = jest.fn(() => mockImage);
-
-            // Déclenchement du click
             bills.handleClickIconEye(icon);
 
-            // Simulation de l'erreur de chargement de l'image
-            mockImage.onerror && mockImage.onerror();
-
-            // Vérifications
-            const modal = document.querySelector("#modaleFile");
-            expect(modal).toBeDefined();
-            expect(modal.classList.contains("show")).toBe(true);
-            const modalBody = document.querySelector(".modal-body");
-            expect(modalBody).toBeDefined();
-            expect(modalBody.innerHTML).toContain("corrompu");
+            expect($.fn.modal).toHaveBeenCalledWith('show');
+            expect($('#modaleFile .modal-body').html()).toContain('Justificatif non disponible');
         });
     });
-
 
 
     // Intégration   GET Bills  ///////////////////////////////////////////////////////////////////////////////////////

@@ -139,16 +139,20 @@ export default class {
   }
 
   handleAcceptSubmit = (e, bill) => {
+    console.log('Bills récupérés:', bill) // Log de debug
+
     const newBill = {
       ...bill,
       status: 'accepted',
       commentAdmin: $('#commentary2').val()
+
     }
     this.updateBill(newBill)
     this.onNavigate(ROUTES_PATH['Dashboard'])
   }
 
   handleRefuseSubmit = (e, bill) => {
+    console.log('Bills récupérés:', bill) // Log de debug
     const newBill = {
       ...bill,
       status: 'refused',
@@ -215,10 +219,12 @@ export default class {
         .bills()
         .list()
         .then(snapshot => {
+          console.log('Bills récupérés:', snapshot) // Log de debug
           const bills = snapshot
             .map(doc => ({
               id: doc.id,
               ...doc,
+              commentAdmin: doc.commentAdmin,
               date: doc.date,
               status: doc.status
             }))
@@ -240,6 +246,8 @@ export default class {
         .update({ data: JSON.stringify(bill), selector: bill.id })
         .then(bill => bill)
         .catch(console.log)
+
     }
+    console.log('Bills récupérés:', bill) // Log de debug
   }
 }
